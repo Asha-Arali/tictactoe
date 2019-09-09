@@ -9,8 +9,6 @@ public class GameState {
 	};
 
 	public enum GameStage {
-		MODE_SELECTION,
-		PLAYER_IDENTIFICATION,
 		IN_GAME,
 		POST_GAME
 	}
@@ -29,7 +27,6 @@ public class GameState {
 	public GameState()
 	{
 		board = new Board();
-
 		reset();
 	}
 
@@ -41,7 +38,7 @@ public class GameState {
 		setTurn(Board.Marker.X);
 		setTurnMessage("Turn: X");
 		setGameMode(GameMode.AI_VS_HUMAN);
-		setGameStage(GameStage.MODE_SELECTION);
+		setGameStage(GameStage.IN_GAME);
 		board.clear();
 	}
 

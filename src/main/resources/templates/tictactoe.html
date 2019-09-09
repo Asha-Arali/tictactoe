@@ -32,7 +32,7 @@
  			</div>
 		</div>
 		<div layout:fragment="content">
- 			<h1>Welcome to Tic Tac Toe</h1>
+ 			<h1 align="center">Welcome to Tic Tac Toe</h1>
  			<p></p>
  			<div class="game-board">
  				<div class="box" th:text="${gameState.board.markAt(0,0)}" onclick="document.location.href = '/tictactoe/move?row=0&col=0'; return false">?</div>
@@ -46,7 +46,7 @@
  				<div class="box" th:text="${gameState.board.markAt(2,2)}" onclick="document.location.href = '/tictactoe/move?row=2&col=2'; return false">?</div>
     		</div>
 			<p></p>
-			<p><a href="/tictactoe/new">Start a new game?</a></p>
+			<p align="center"><a href="/tictactoe">Start a new game?</a></p>
 			<p></p>
  		</div>
 	</body>

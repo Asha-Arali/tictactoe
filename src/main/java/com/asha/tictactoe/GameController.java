@@ -1,5 +1,6 @@
 package com.asha.tictactoe;
 
+import java.util.Arrays;
 import java.util.Random;
 
 import javax.servlet.http.HttpSession;
@@ -11,6 +12,8 @@ import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RequestParam;
+
+import static com.asha.tictactoe.Constants.BOARD_SIZE;
 
 @Controller
 public class GameController {
@@ -30,37 +33,12 @@ public class GameController {
 			Model model) {
 		
 		GameState gameState = getStateFromSession(session);
-		if(gameState == null) {
-			log.info("gameState is null; starting new game");
-			gameState = new GameState();
-			putStateInSession(session, gameState);
-		}
 		gameState.startNewGame();
 		model.addAttribute(Constants.GAME_STATE, gameState);
-		
+
 		return Constants.VIEW_GAME;
 	}
 	
-	/**
-	 * Starts a new game
-	 * 
-	 * @param session 
-	 * @param model Spring framework Model
-	 * @return Spring framework View name
-	 */
-	@RequestMapping(value = "/tictactoe/new", method = RequestMethod.GET)
-	public String gameNew(
-			HttpSession session,
-			Model model) {
-		
-		log.info("Starting new game");
-		GameState gameState = getStateFromSession(session);
-		gameState.startNewGame();
-		model.addAttribute(Constants.GAME_STATE, gameState);
-		
-		return Constants.VIEW_GAME;
-	}
-
 	/**
 	 * Places a marker for the current player in the requested position.
 	 * 
@@ -80,7 +58,7 @@ public class GameController {
 		GameState gameState = getStateFromSession(session);
 		model.addAttribute(Constants.GAME_STATE, gameState);
 		log.info("move=(" + row + ", " + col + ")");
-		
+
 		// If not in the midst of a game, don't allow move.
 		if(!gameState.getGameStage().equals(GameState.GameStage.IN_GAME)) {
 			log.info("Game not in progress); ignoring move request.");
@@ -88,21 +66,19 @@ public class GameController {
 		}
 		
 		Board board = gameState.getBoard();
+
 		try {
 			board.move(row, col, gameState.getTurn());
 			evaluateBoard(gameState);
 			
 			// If game has not ended one way or another, determine where it will move.
 			if(gameState.getGameStage().equals(GameState.GameStage.IN_GAME)) {
-					//gameState.getGameMode().equals(GameState.GameMode.AI_VS_HUMAN)) {
 				determineBestMove(gameState);
 				evaluateBoard(gameState);
 			}
 		}
 		catch( Exception e )
 		{
-			// TODO: Add message to user.  As it is now, move request is
-			// ignored, but letting them know would probably be better
 			log.error("Cannot complete move", e);
 		}
 		
@@ -117,18 +93,20 @@ public class GameController {
 	 */
 	public void evaluateBoard(GameState gameState) {
 		Board board = gameState.getBoard();
-		// First, check for a draw
-		if(board.isDraw()) {
-			gameState.setGameMessage("It's a draw!");
-			gameState.setGameStage(GameState.GameStage.POST_GAME);
-		}
-		else if(board.isWinner(gameState.getTurn())) {
+
+		//First check if there is a winner
+		if(board.isWinner(gameState.getTurn())) {
 			if(gameState.getTurn().equals(Board.Marker.O)) {
 				gameState.setGameMessage("O wins!");
 			}
 			else {
 				gameState.setGameMessage("X wins!");
 			}
+			gameState.setGameStage(GameState.GameStage.POST_GAME);
+		}
+		//Check if it is a draw
+		else if(board.isDraw()) {
+			gameState.setGameMessage("It's a draw!");
 			gameState.setGameStage(GameState.GameStage.POST_GAME);
 		}
 		else
@@ -143,192 +121,60 @@ public class GameController {
 			}
 		}
 	}
-	
+
 	/**
 	 * This method is called during play against the computer, and 
 	 * attempts to find the best possible move.
-	 * 
+	 * It tries to block the winning of the opponent
 	 * @param gameState
 	 */
 	public void determineBestMove(GameState gameState)
 	{
-		Board.Marker board[][] = gameState.getBoard().board;
-		Board.Marker playerMarker = gameState.getTurn() ;
+		Board board = gameState.getBoard();
+		Board.Marker boardArray[][] = gameState.getBoard().board;
+		Board.Marker playerMarker = gameState.getTurn();
 		Board.Marker opponentMarker = playerMarker.equals(Board.Marker.X) ? Board.Marker.O : Board.Marker.X ;
-		
+
 		// First, determine if there is a block that needs to be made.
 		// Check the center first, if empty, blocker-wise
-		if( board[1][1].equals(Board.Marker.BLANK)) {
-			if((board[0][1].equals(opponentMarker) &&
-				board[2][1].equals(opponentMarker)) ||
-			   (board[1][0].equals(opponentMarker) &&
-				board[1][2].equals(opponentMarker)) ||
-			   (board[0][0].equals(opponentMarker) &&  
-				board[2][2].equals(opponentMarker)) ||
-			   (board[0][2].equals(opponentMarker) &&  
-				board[2][0].equals(opponentMarker))) {
-					
-				try {
+		if( boardArray[1][1].equals(Board.Marker.BLANK)) {
+			try {
 					gameState.getBoard().move(1, 1, playerMarker );
 					return;
 				}
 				catch(Exception e) {
 					// Already checked
 				}
-			}
 		}
-		
-		// Next, check if there is a block move in the verticals.
-		for(int r = 0; r < 3; ++r) {
-			int bCount = 0;
-			int oCount = 0;
-			for(int c = 0; c < 3; ++c) {
-				if(board[r][c].equals(opponentMarker)) {
-					++oCount;
-				}
-				if(board[r][c].equals(Board.Marker.BLANK)) {
-					++bCount;
-				}
-			}
-			
-			// If there were two opponent markers and a blank,
-			// move to the blank spot.
-			if((oCount == 2) && (bCount == 1)) {
-				for(int c = 0; c < 3; ++c) {
-					if(board[r][c].equals(Board.Marker.BLANK)) {
-						try {
-							gameState.getBoard().move(r, c, playerMarker);
-							return;
-						}
-						catch(Exception e) {
-							// Already checked
-						}
-					}
-				}
-			}
+		// Check if there is a block move in the rows.
+		else if (board.canBlockWinHorizontally(gameState)) {
+         	return;
 		}
-		
-		// Next, check rows for blockers.
-		for(int c = 0; c < 3; ++c) {
-			int bCount = 0;
-			int oCount = 0;
-			for(int r = 0; r < 3; ++r) {
-				if(board[r][c].equals(opponentMarker)) {
-					++oCount;
-				}
-				if(board[r][c].equals(Board.Marker.BLANK)) {
-					++bCount;
-				}
-			}
-			
-			// If there were two opponent markers and a blank,
-			// move to the blank spot.
-			if((oCount == 2) && (bCount == 1)) {
-				for(int r = 0; r < 3; ++r) {
-					if(board[r][c].equals(Board.Marker.BLANK)) {
-						try {
-							gameState.getBoard().move(r, c, playerMarker);
-							return;
-						}
-						catch(Exception e) {
-							// Already checked
-						}
-					}
-				}
-			}
+		// Check if there is a block move in the columns.
+        else if (board.canBlockWinVertically(gameState)) {
+			return;
 		}
-		
-		// And lastly for blockers, check for diagonals
-		int bCount = 0;
-		int oCount = 0;
-		int r = 0;
-		int c = 0;
-		for(int i = 0; i < 3; ++i) {
-			if(board[r][c].equals(opponentMarker)) {
-				++oCount;
-			}
-			if(board[r][c].equals(Board.Marker.BLANK)) {
-				++bCount;
-			}
-			++r;
-			++c;
+        // Check if there is a block move in the diagonals.
+        else if (board.canBlockWinDiagonally(gameState)) {
+			return;
 		}
-		if((oCount == 2) && (bCount == 1)) {
-			r = 0;
-			c = 0;
-			for(int i = 0; i < 3; ++i) {
-				if(board[r][c].equals(Board.Marker.BLANK)) {
-					try {
-						gameState.getBoard().move(r, c, playerMarker);
-						return;
-					}
-					catch(Exception e) {
-						// Already checked
-					}
-				}
-				++r;
-				++c;
-			}
-		}
-		r = 0;
-		c = 2;
-		bCount = 0;
-		oCount = 0;
-		for(int i = 0; i < 3; ++i) {
-			if(board[r][c].equals(opponentMarker)) {
-				++oCount;
-			}
-			if(board[r][c].equals(Board.Marker.BLANK)) {
-				++bCount;
-			}
-			++r;
-			--c;
-		}
-		if((oCount == 2) && (bCount == 1)) {
-			r = 0;
-			c = 2;
-			for(int i = 0; i < 3; ++i) {
-				if(board[r][c].equals(Board.Marker.BLANK)) {
-					try {
-						gameState.getBoard().move(r, c, playerMarker);
-						return;
-					}
-					catch(Exception e) {
-						// Already checked
-					}
-				}
-				++r;
-				--c;
-			}
-		}
-		
-		// If still available, take the center; always a good move.
-		if(board[1][1].equals(Board.Marker.BLANK)) {
-			try {
-				gameState.getBoard().move(1, 1, playerMarker );
-				return;
-			}
-			catch(Exception e) {
-				// Already checked
-			}			
-		}
-		
-
-		// Keep generating random positions until a blank spot is found
-		boolean found = false;
-		Random random = new Random();
-		while(!found) {
-			r = random.nextInt(3);
-			c = random.nextInt(3);
-			if(board[r][c].equals(Board.Marker.BLANK)) {
-				try {
-					gameState.getBoard().move(r, c, playerMarker );
-					found = true;
-				}
-				catch(Exception e) {
-					log.error("Problem making random move!", e);
-				}			
-			}
+        // Else keep generating random positions until a blank spot is found
+        else {
+			 boolean found = false;
+			 Random random = new Random();
+			 while(!found) {
+				 int row = random.nextInt(BOARD_SIZE);
+				 int col = random.nextInt(BOARD_SIZE);
+				 if(boardArray[row][col].equals(Board.Marker.BLANK)) {
+					 try {
+						 gameState.getBoard().move(row, col, playerMarker );
+						 found = true;
+					 }
+					 catch(Exception e) {
+						 log.error("Problem making random move!", e);
+					 }
+				 }
+			 }
 		}
 	}
 	
@@ -341,11 +187,13 @@ public class GameController {
 	private GameState getStateFromSession(HttpSession session)
 	{
 		GameState gameState = (GameState)session.getAttribute(Constants.GAME_STATE);
+
 		if(gameState == null) {
 			log.info("New GameState created and put in session");
 			gameState = new GameState();
 			putStateInSession(session, gameState);
 		}
+
 		return gameState;
 	}
 	
